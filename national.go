@@ -1,7 +1,10 @@
 package main
 
-import "time"
+import (
+	"encoding/hex"
+)
 
+// QuestionInfo contains metadata for both national and worldwide questions.
 type QuestionInfo struct {
 	PollID						uint32
 	PollCategory1				uint8
@@ -18,6 +21,7 @@ type QuestionInfo struct {
 	QuestionTableEntryNumber	uint32
 }
 
+// NationalResult contains the overall results for a national question.
 type NationalResult struct {
 	PollID									uint32
 	MaleVotersResponse1						uint32
@@ -32,19 +36,71 @@ type NationalResult struct {
 	StartingNationalResultDetailedNumber	uint32
 }
 
+// DetailedNationalResult contains the results of a question
+// for a specific region.
+type DetailedNationalResult struct {
+	VotersResponse1Number		uint32
+	VotersResponse2Number		uint32
+	PositionEntryTableCount		uint8
+	PositionTableEntryNumber	uint32
+}
+
+// MakeNationalQuestionsTable gets the available questions from
+// the database and forms the metadata.
 func (v *Votes) MakeNationalQuestionsTable() {
 	v.Header.NationalQuestionTableOffset = v.GetCurrentSize()
+	entryNum := 0
 
-	nationalQuestion := QuestionInfo{
-		PollID:                     30001,
-		PollCategory1:              0,
-		PollCategory2:              0,
-		StartingTimestamp:          uint32(time.Now().Unix()),
-		EndingTimestamp:            uint32(time.Now().Unix()) + 1000,
-		NumberOfSupportedLanguages: 3,
-		QuestionTableEntryNumber:   0,
+	for i := 0; i < len(pollIDs); i++ {
+		nationalQuestion := QuestionInfo{
+			PollID:                     uint32(pollIDs[i]),
+			// TODO: Implement categories within db
+			PollCategory1:              0,
+			PollCategory2:              0,
+			StartingTimestamp:          CreateTimestamp(startDateSlice[i]),
+			EndingTimestamp:            CreateTimestamp(endDateSlice[i]),
+			NumberOfSupportedLanguages: uint8(len(countriesSupportedLanguages[currentCountryCode])),
+			QuestionTableEntryNumber:   uint32(entryNum),
+		}
+
+		v.NationalQuestionTable = append(v.NationalQuestionTable, nationalQuestion)
+		entryNum += len(countriesSupportedLanguages[currentCountryCode])
 	}
 
-	v.NationalQuestionTable = append(v.NationalQuestionTable, nationalQuestion)
 	v.Header.NumberOfNationalQuestions = uint8(len(v.NationalQuestionTable))
+}
+
+// MakeNationalResultsTable creates the results for the current national question.
+func (v *Votes) MakeNationalResultsTable() {
+	result := PrepareNationalResults()
+
+	if result != nil {
+		v.Header.NationalResultTableOffset = v.GetCurrentSize()
+		v.NationalResults = append(v.NationalResults, *result)
+	}
+
+	v.Header.NumberOfNationalResults = uint8(len(v.NationalResults))
+}
+
+// MakeDetailedNationalResultsTable creates the detailed results for the current national question.
+func (v *Votes) MakeDetailedNationalResultsTable() {
+	v.Header.DetailedNationalResultTableOffset = v.GetCurrentSize()
+
+	v.DetailedNationalResults = nationalDetailedResults
+	v.Header.NumberOfDetailedNationalResults = uint16(len(v.DetailedNationalResults))
+}
+
+// MakePositionTable creates the position table for the current country.
+func (v *Votes) MakePositionTable() {
+	for i, str := range positionData {
+		if i == currentCountryCode {
+			v.Header.PositionTableOffset = v.GetCurrentSize()
+			v.Header.NumberOfPositionTables = uint16(numberOfRegions[currentCountryCode])
+
+			position, err := hex.DecodeString(str)
+			checkError(err)
+
+			v.PositionEntryTable = position
+		}
+	}
 }

@@ -31,6 +31,41 @@ type Header struct {
 	CountryTableOffset					uint32
 }
 
-func GenerateTimestamp() uint32 {
-	return uint32((time.Now().Unix() - 946684800) / 60)
+func (v *Votes) MakeHeader() {
+	v.Header = Header{
+		Version:                      0,
+		Filesize:                     0,
+		CRC32:                        0,
+		Timestamp:                    GenerateCurrentTimestamp(),
+		CountryCode: 				  uint8(currentCountryCode),
+		PublicityFlag:                0,
+		QuestionVersion:              1,
+		ResultVersion:                0,
+		NumberOfNationalQuestions:    0,
+		NationalQuestionTableOffset:  0,
+		NumberOfWorldWideQuestions:   0,
+		WorldWideQuestionTableOffset: 0,
+		NumberOfQuestions:            0,
+		QuestionTextInfoTableOffset:  0,
+		NumberOfNationalResults:      0,
+		NationalResultTableOffset:          0,
+		NumberOfDetailedNationalResults:    0,
+		DetailedNationalResultTableOffset:  0,
+		NumberOfPositionTables:             0,
+		PositionTableOffset:                0,
+		NumberOfWorldWideResults:           0,
+		WorldWideResultsTableOffset:        0,
+		NumberOfDetailedWorldWideResults:   0,
+		DetailedWorldWideResultTableOffset: 0,
+		NumberOfCountries:                  0,
+		CountryTableOffset:                 0,
+	}
+}
+
+func GenerateCurrentTimestamp() uint32 {
+	return CreateTimestamp(int(time.Now().Unix()))
+}
+
+func CreateTimestamp(time int) uint32 {
+	return uint32((time - 946684800) / 60)
 }
