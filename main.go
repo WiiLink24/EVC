@@ -3,11 +3,19 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha1"
+	"crypto/x509"
 	"encoding/binary"
+	"encoding/pem"
 	"fmt"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/wii-tools/lz11"
 	"hash/crc32"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -16,24 +24,24 @@ import (
 // Votes contains all the children structs needed to
 // make a voting.bin file.
 type Votes struct {
-	Header						Header
-	NationalQuestionTable		[]QuestionInfo
-	WorldWideQuestionTable		[]QuestionInfo
-	QuestionTextInfoTable		[]QuestionTextInfo
-	NationalResults				[]NationalResult
-	DetailedNationalResults		[]DetailedNationalResult
-	PositionEntryTable			[]byte
-	WorldwideResults			[]WorldWideResult
-	WorldwideResultsDetailed	[]DetailedWorldwideResult
-	QuestionText				[]QuestionText
-	CountryInfoTable			[]CountryInfoTable
-	CountryTable				[]uint16
+	Header                   Header
+	NationalQuestionTable    []QuestionInfo
+	WorldWideQuestionTable   []QuestionInfo
+	QuestionTextInfoTable    []QuestionTextInfo
+	NationalResults          []NationalResult
+	DetailedNationalResults  []DetailedNationalResult
+	PositionEntryTable       []byte
+	WorldwideResults         []WorldWideResult
+	WorldwideResultsDetailed []DetailedWorldwideResult
+	QuestionText             []QuestionText
+	CountryInfoTable         []CountryInfoTable
+	CountryTable             []uint16
 }
 
 // SQL variables.
 var (
 	pool *pgxpool.Pool
-	ctx = context.Background()
+	ctx  = context.Background()
 )
 
 // currentCountryCode stores the country code we are currently generating for.
@@ -64,13 +72,13 @@ func main() {
 			temp += "0"
 		}
 
-		err = os.Mkdir(fmt.Sprintf("votes/%s", temp + strCountryCode), 0755)
+		err = os.Mkdir(fmt.Sprintf("votes/%s", temp+strCountryCode), 0755)
 		if !os.IsExist(err) {
 			// If the folder exists we can just continue
 			checkError(err)
 		}
 
-		create, err := os.Create(fmt.Sprintf("votes/%s/VOTING.BIN", temp + strCountryCode))
+		create, err := os.Create(fmt.Sprintf("votes/%s/VOTING.BIN", temp+strCountryCode))
 		checkError(err)
 
 		// Create a byte buffer for calculating crc32 later on
@@ -119,7 +127,17 @@ func main() {
 		votes.Header.CRC32 = checksum
 		votes.Header.Filesize = uint32(buffer.Len())
 
-		votes.WriteAll(create)
+		// Reset the temp buffer and compress
+		buffer.Reset()
+		votes.WriteAll(buffer)
+
+		compressed, err := lz11.Compress(buffer.Bytes())
+		checkError(err)
+
+		signed := SignFile(compressed)
+
+		_, err = create.Write(signed)
+		checkError(err)
 
 		CleanVariables()
 	}
@@ -133,9 +151,9 @@ func (v *Votes) Write(writer io.Writer, data interface{}) {
 	checkError(err)
 }
 
-func (v *Votes) WriteAll(writer io.Writer)  {
+func (v *Votes) WriteAll(writer io.Writer) {
 	v.Write(writer, v.Header)
-	
+
 	// Questions
 	v.Write(writer, v.NationalQuestionTable)
 	v.Write(writer, v.WorldWideQuestionTable)
@@ -169,4 +187,34 @@ func (v *Votes) GetCurrentSize() uint32 {
 	v.WriteAll(buffer)
 
 	return uint32(buffer.Len())
+}
+
+func SignFile(contents []byte) []byte {
+	buffer := bytes.NewBuffer(nil)
+
+	// Get RSA key and sign
+	rsaData, err := ioutil.ReadFile("Private.pem")
+	checkError(err)
+
+	rsaBlock, _ := pem.Decode(rsaData)
+
+	parsedKey, err := x509.ParsePKCS1PrivateKey(rsaBlock.Bytes)
+	checkError(err)
+
+	// Hash our data then sign
+	hash := sha1.New()
+	_, err = hash.Write(contents)
+	checkError(err)
+
+	contentsHashSum := hash.Sum(nil)
+
+	reader := rand.Reader
+	signature, err := rsa.SignPKCS1v15(reader, parsedKey, crypto.SHA1, contentsHashSum)
+	checkError(err)
+
+	buffer.Write(make([]byte, 64))
+	buffer.Write(signature)
+	buffer.Write(contents)
+
+	return buffer.Bytes()
 }
