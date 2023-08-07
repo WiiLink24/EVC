@@ -82,9 +82,6 @@ func main() {
 	for _, countryCode := range countryCodes {
 		go func(countryCode uint8) {
 			defer wg.Done()
-			if countryCode != 18 {
-				return
-			}
 
 			votes := Votes{}
 			votes.currentCountryCode = countryCode
