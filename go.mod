@@ -1,10 +1,11 @@
 module EverybodyVotesChannel
 
-go 1.17
+go 1.18
 
 require (
 	github.com/jackc/pgx/v4 v4.15.0
 	github.com/wii-tools/lz11 v0.2.0
+	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
 )
 
 require (

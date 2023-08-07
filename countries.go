@@ -5,11 +5,11 @@ import (
 )
 
 type CountryInfoTable struct {
-	LanguageCode	LanguageCode
-	TextOffset		uint32
+	LanguageCode LanguageCode
+	TextOffset   uint32
 }
 
-func (v *Votes) MakeCountryInfoTable()  {
+func (v *Votes) MakeCountryInfoTable() {
 	v.Header.CountryTableOffset = v.GetCurrentSize()
 	for range countries {
 		for _, code := range languages {
