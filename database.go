@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/jackc/pgx/v4"
 	"strconv"
 	"time"
 )
@@ -68,12 +69,10 @@ func PrepareWorldWideResults() *WorldWideResult {
 
 	row := pool.QueryRow(ctx, BaseQueryWorldwide, time.Now().Unix())
 	err := row.Scan(&questionID)
-	checkError(err)
-
-	if questionID == 0 {
-		// No applicable question was found
+	if err == pgx.ErrNoRows {
 		return nil
 	}
+	checkError(err)
 
 	results := WorldWideResult{
 		PollID:                          uint32(questionID),
@@ -149,10 +148,10 @@ func (v *Votes) PrepareNationalResults() *NationalResult {
 
 	row := pool.QueryRow(ctx, BaseQueryNational, time.Now().Unix())
 	err := row.Scan(&questionID)
-	checkError(err)
-	if questionID == 0 {
+	if err == pgx.ErrNoRows {
 		return nil
 	}
+	checkError(err)
 
 	// Now that we know there is a question, init the nationalDetailedResults array
 	nationalDetailedResults = make([]DetailedNationalResult, numberOfRegions[v.currentCountryCode])
