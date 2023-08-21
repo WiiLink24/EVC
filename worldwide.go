@@ -51,11 +51,9 @@ func (v *Votes) MakeWorldWideQuestionsTable() {
 
 // MakeWorldWideResultsTable creates the results for the current national question.
 func (v *Votes) MakeWorldWideResultsTable() {
-	result := PrepareWorldWideResults()
-
-	if result != nil {
+	if worldWideResult.PollID != 0 {
 		v.Header.WorldWideResultsTableOffset = v.GetCurrentSize()
-		v.WorldwideResults = append(v.WorldwideResults, *result)
+		v.WorldwideResults = append(v.WorldwideResults, worldWideResult)
 	}
 
 	v.Header.NumberOfWorldWideResults = uint8(len(v.WorldwideResults))

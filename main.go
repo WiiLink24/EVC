@@ -55,6 +55,9 @@ func checkError(err error) {
 }
 
 func main() {
+	err := os.WriteFile("votes/first_data.bin", MakeFirstData(), 0666)
+	checkError(err)
+
 	fileType = GetFileType(os.Args[1])
 	// Get config
 	config := GetConfig()
@@ -74,15 +77,15 @@ func main() {
 		checkError(err)
 	}
 
-	// Next prepare the questions for every region.
+	// Next prepare the questions for every region + Worldwide results.
 	PrepareQuestions()
+	PrepareWorldWideResults()
 
 	wg := sync.WaitGroup{}
 	wg.Add(len(countryCodes))
 	for _, countryCode := range countryCodes {
 		go func(countryCode uint8) {
 			defer wg.Done()
-
 			votes := Votes{}
 			votes.currentCountryCode = countryCode
 
@@ -118,8 +121,7 @@ func main() {
 				votes.MakeDetailedWorldWideResults()
 			}
 
-			// TODO: Get national results before this, generate if results are 0
-			if 1 == 2 {
+			if (fileType == Normal || fileType == Results) && votes.Header.NumberOfNationalResults == 0 {
 				// Country Table + Text
 				votes.MakeCountryInfoTable()
 				votes.MakeCountryTable()
@@ -127,8 +129,6 @@ func main() {
 
 			// Write to byte buffer, add the file size, calculate crc32 then write file
 			votes.WriteAll(buffer)
-
-			binary.BigEndian.PutUint32(buffer.Bytes()[4:], uint32(buffer.Len()))
 
 			crcTable := crc32.MakeTable(crc32.IEEE)
 			checksum := crc32.Checksum(buffer.Bytes()[12:], crcTable)
