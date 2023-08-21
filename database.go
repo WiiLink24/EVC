@@ -61,20 +61,22 @@ var questions []Question
 var worldwideQuestions []Question
 var nationalDetailedResults []DetailedNationalResult
 var worldWideDetailedResults []DetailedWorldwideResult
+var worldWideResult WorldWideResult
 
 // PrepareWorldWideResults returns the WorldWideResults for the WorldWide vote,
 // as well as create a DetailedWorldwideResult slice.
-func PrepareWorldWideResults() *WorldWideResult {
+func PrepareWorldWideResults() {
 	var questionID int
 
 	row := pool.QueryRow(ctx, BaseQueryWorldwide, time.Now().Unix())
 	err := row.Scan(&questionID)
 	if err == pgx.ErrNoRows {
-		return nil
+		return
 	}
+
 	checkError(err)
 
-	results := WorldWideResult{
+	worldWideResult = WorldWideResult{
 		PollID:                          uint32(questionID),
 		MaleVotersResponse1:             0,
 		MaleVotersResponse2:             0,
@@ -106,10 +108,10 @@ func PrepareWorldWideResults() *WorldWideResult {
 		ansCNT := FormatAnsCnt(strconv.FormatInt(int64(ansCNTInt), 10))
 		if typeCD == Vote {
 			// Main results
-			results.MaleVotersResponse1 += ansCNT[0]
-			results.MaleVotersResponse2 += ansCNT[2]
-			results.FemaleVotersResponse1 += ansCNT[1]
-			results.FemaleVotersResponse2 += ansCNT[3]
+			worldWideResult.MaleVotersResponse1 += ansCNT[0]
+			worldWideResult.MaleVotersResponse2 += ansCNT[2]
+			worldWideResult.FemaleVotersResponse1 += ansCNT[1]
+			worldWideResult.FemaleVotersResponse2 += ansCNT[3]
 
 			// Detailed Results
 			for i, code := range countryCodes {
@@ -122,13 +124,13 @@ func PrepareWorldWideResults() *WorldWideResult {
 				}
 			}
 		} else if typeCD == Prediction {
-			results.PredictorsResponse1 += ansCNT[0] + ansCNT[1]
-			results.PredictorsResponse2 += ansCNT[2] + ansCNT[3]
+			worldWideResult.PredictorsResponse1 += ansCNT[0] + ansCNT[1]
+			worldWideResult.PredictorsResponse2 += ansCNT[2] + ansCNT[3]
 		}
 	}
 
 	countryTablePos := 231
-	for i := 33; i != -1; i-- {
+	for i := len(countryCodes); i != -1; i-- {
 		if worldWideDetailedResults[i].CountryTableCount == 7 {
 			worldWideDetailedResults[i].CountryTableNumber = uint32(countryTablePos)
 		} else {
@@ -139,8 +141,7 @@ func PrepareWorldWideResults() *WorldWideResult {
 		countryTablePos -= 7
 	}
 
-	results.NumberOfWorldWideDetailedTables = uint8(len(worldWideDetailedResults))
-	return &results
+	worldWideResult.NumberOfWorldWideDetailedTables = uint8(len(worldWideDetailedResults))
 }
 
 func (v *Votes) PrepareNationalResults() *NationalResult {
