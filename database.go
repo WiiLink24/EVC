@@ -61,11 +61,10 @@ type Question struct {
 
 var questions []Question
 var worldwideQuestions []Question
-var nationalDetailedResults []DetailedNationalResult
 var worldWideDetailedResults []DetailedWorldwideResult
 var worldWideResult WorldWideResult
 
-// PrepareWorldWideResults returns the WorldWideResults for the WorldWide vote,
+// PrepareWorldWideResults returns the WorldWideResult for the WorldWide vote,
 // as well as create a DetailedWorldwideResult slice.
 func PrepareWorldWideResults() {
 	var questionID int
@@ -91,7 +90,7 @@ func PrepareWorldWideResults() {
 	}
 
 	// Now that we know that there is a question, init the array
-	worldWideDetailedResults = make([]DetailedWorldwideResult, 34)
+	worldWideDetailedResults = make([]DetailedWorldwideResult, len(countryCodes)+1)
 
 	// Now we query votes table
 	rows, err := pool.Query(ctx, QueryResults, questionID)
@@ -131,7 +130,7 @@ func PrepareWorldWideResults() {
 		}
 	}
 
-	countryTablePos := 231
+	countryTablePos := len(countryCodes) * 7
 	for i := len(countryCodes); i != -1; i-- {
 		if worldWideDetailedResults[i].CountryTableCount == 7 {
 			worldWideDetailedResults[i].CountryTableNumber = uint32(countryTablePos)
@@ -146,18 +145,18 @@ func PrepareWorldWideResults() {
 	worldWideResult.NumberOfWorldWideDetailedTables = uint8(len(worldWideDetailedResults))
 }
 
-func (v *Votes) PrepareNationalResults() *NationalResult {
+func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalResult) {
 	var questionID int
 
 	row := pool.QueryRow(ctx, BaseQueryNational, time.Now().Unix())
 	err := row.Scan(&questionID)
 	if err == pgx.ErrNoRows {
-		return nil
+		return nil, nil
 	}
 	checkError(err)
 
 	// Now that we know there is a question, init the nationalDetailedResults array
-	nationalDetailedResults = make([]DetailedNationalResult, numberOfRegions[v.currentCountryCode])
+	nationalDetailedResults := make([]DetailedNationalResult, numberOfRegions[v.currentCountryCode])
 
 	results := NationalResult{
 		PollID:                               uint32(questionID),
@@ -187,6 +186,10 @@ func (v *Votes) PrepareNationalResults() *NationalResult {
 		err = rows.Scan(&typeCD, &countryID, &regionID, &ansCNTInt)
 		checkError(err)
 
+		if countryID != int(v.currentCountryCode) {
+			continue
+		}
+
 		ansCNT := FormatAnsCnt(strconv.FormatInt(int64(ansCNTInt), 10))
 		if typeCD == Vote {
 			// Main results
@@ -212,7 +215,7 @@ func (v *Votes) PrepareNationalResults() *NationalResult {
 		}
 	}
 
-	return &results
+	return &results, nationalDetailedResults
 }
 
 func PrepareQuestions() {

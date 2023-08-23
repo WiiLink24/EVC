@@ -475,4 +475,14 @@ type FileType uint8
 const (
 	Normal FileType = iota
 	Results
+	_Question
+)
+
+// Locality is whether it is national or worldwide
+type Locality uint8
+
+const (
+	Worldwide Locality = iota
+	National
+	All
 )

@@ -71,7 +71,8 @@ func (v *Votes) MakeNationalQuestionsTable() {
 
 // MakeNationalResultsTable creates the results for the current national question.
 func (v *Votes) MakeNationalResultsTable() {
-	result := v.PrepareNationalResults()
+	result, detailed := v.PrepareNationalResults()
+	v.tempDetailedResults = detailed
 
 	if result != nil {
 		v.Header.NationalResultTableOffset = v.GetCurrentSize()
@@ -85,7 +86,7 @@ func (v *Votes) MakeNationalResultsTable() {
 func (v *Votes) MakeDetailedNationalResultsTable() {
 	v.Header.DetailedNationalResultTableOffset = v.GetCurrentSize()
 
-	v.DetailedNationalResults = nationalDetailedResults
+	v.DetailedNationalResults = v.tempDetailedResults
 	v.Header.NumberOfDetailedNationalResults = uint16(len(v.DetailedNationalResults))
 }
 

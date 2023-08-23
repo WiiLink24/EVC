@@ -38,7 +38,8 @@ type Votes struct {
 	CountryTable             []uint16
 
 	// Static values
-	currentCountryCode uint8
+	currentCountryCode  uint8
+	tempDetailedResults []DetailedNationalResult
 }
 
 // SQL variables.
@@ -46,6 +47,7 @@ var (
 	pool     *pgxpool.Pool
 	ctx      = context.Background()
 	fileType FileType
+	locality Locality
 )
 
 func checkError(err error) {
@@ -59,6 +61,12 @@ func main() {
 	checkError(err)
 
 	fileType = GetFileType(os.Args[1])
+	if len(os.Args) >= 3 {
+		locality = GetLocality(os.Args[2])
+	} else {
+		locality = All
+	}
+
 	// Get config
 	config := GetConfig()
 
@@ -102,7 +110,7 @@ func main() {
 			// Header
 			votes.MakeHeader()
 
-			if fileType == Normal {
+			if fileType == Normal || fileType == _Question {
 				// Questions
 				votes.MakeNationalQuestionsTable()
 				votes.MakeWorldWideQuestionsTable()
@@ -111,17 +119,19 @@ func main() {
 
 			// National Results
 			if fileType == Normal || fileType == Results {
-				// National Results
-				votes.MakeNationalResultsTable()
-				votes.MakeDetailedNationalResultsTable()
-				votes.MakePositionTable()
+				if locality != Worldwide {
+					votes.MakeNationalResultsTable()
+					votes.MakeDetailedNationalResultsTable()
+					votes.MakePositionTable()
+				}
 
-				// Worldwide Results
-				votes.MakeWorldWideResultsTable()
-				votes.MakeDetailedWorldWideResults()
+				if locality != National {
+					votes.MakeWorldWideResultsTable()
+					votes.MakeDetailedWorldWideResults()
+				}
 			}
 
-			if (fileType == Normal || fileType == Results) && votes.Header.NumberOfNationalResults == 0 {
+			if (fileType == Normal || fileType == Results) && locality != National {
 				// Country Table + Text
 				votes.MakeCountryInfoTable()
 				votes.MakeCountryTable()

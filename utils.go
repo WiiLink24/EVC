@@ -129,8 +129,37 @@ func GetFileType(str string) FileType {
 		return Normal
 	case "r":
 		return Results
+	case "q":
+		return _Question
 	default:
 		return Normal
+	}
+}
+
+func GetLocality(str string) Locality {
+	switch str {
+	case "w":
+		return Worldwide
+	case "n":
+		return National
+	default:
+		return All
+	}
+}
+
+func GetTimeDifference() int {
+	if locality == National {
+		return 7
+	} else {
+		return 14
+	}
+}
+
+func GetExtension() string {
+	if fileType == Results {
+		return "_r.bin"
+	} else {
+		return "_q.bin"
 	}
 }
 
@@ -138,9 +167,10 @@ func GetFilename() string {
 	if fileType == Normal {
 		return "voting.bin"
 	} else {
-		year := strconv.Itoa(time.Now().Year())
-		month := ZFill(uint8(time.Now().Month()), 2)
-		day := ZFill(uint8(time.Now().Day()), 2)
-		return year + "/" + month + day + "_r.bin"
+		date := time.Now().AddDate(0, 0, -GetTimeDifference())
+		year := strconv.Itoa(date.Year())
+		month := ZFill(uint8(date.Month()), 2)
+		day := ZFill(uint8(date.Day()), 2)
+		return year + "/" + month + day + GetExtension()
 	}
 }
