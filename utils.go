@@ -56,6 +56,10 @@ func (v *Votes) GetQuestionForLanguage(question Question, language LanguageCode)
 		return question.QuestionText.Portuguese
 	case FrenchCanadian:
 		return question.QuestionText.FrenchCanadian
+	case Catalan:
+		return question.QuestionText.Catalan
+	case Russian:
+		return question.QuestionText.Russian
 	}
 
 	return question.QuestionText.English
@@ -81,6 +85,10 @@ func (v *Votes) GetResponse1ForLanguage(question Question, language LanguageCode
 		return question.Response1.Portuguese
 	case FrenchCanadian:
 		return question.Response1.FrenchCanadian
+	case Catalan:
+		return question.Response1.Catalan
+	case Russian:
+		return question.Response1.Russian
 	}
 
 	return question.QuestionText.English
@@ -106,6 +114,10 @@ func (v *Votes) GetResponse2ForLanguage(question Question, language LanguageCode
 		return question.Response2.Portuguese
 	case FrenchCanadian:
 		return question.Response2.FrenchCanadian
+	case Catalan:
+		return question.Response2.Catalan
+	case Russian:
+		return question.Response2.Russian
 	}
 
 	return question.QuestionText.English
