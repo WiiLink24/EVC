@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/jackc/pgx/v4"
+	"os"
 	"strconv"
 	"time"
 )
@@ -16,7 +17,9 @@ const (
 						start_date, end_date
 						FROM questions
 						WHERE end_date > $1
-						AND worldwide = false`
+						AND start_date <= $1  
+						AND worldwide = false
+						ORDER BY end_date ASC LIMIT 3`
 
 	// QueryQuestionsWorldwide queries the questions table for worldwide questions.
 	QueryQuestionsWorldwide = `SELECT question_id, 
@@ -26,6 +29,7 @@ const (
 						start_date, end_date
 						FROM questions
 						WHERE end_date > $1
+						AND start_date <= $1  
 						AND worldwide = true`
 
 	// QueryResults queries the votes table for the results of a specified question.
@@ -172,6 +176,8 @@ func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalRes
 		StartingNationalResultDetailedNumber: 0,
 	}
 
+	fmt.Println(questionID)
+	os.Exit(0)
 	// Now query the votes table
 	rows, err := pool.Query(ctx, QueryResults, questionID)
 	checkError(err)
@@ -273,6 +279,8 @@ func PrepareQuestions() {
 			&startDate, &endDate)
 		checkError(err)
 
+		fmt.Println(englishQuestion)
+		fmt.Println(questionID)
 		questions = append(questions, Question{
 			ID: questionID,
 			QuestionText: LocalizedText{
@@ -317,107 +325,100 @@ func PrepareQuestions() {
 			StartTime: startDate,
 			EndTime:   endDate,
 		})
-
-		fmt.Println(englishQuestion)
 	}
 
 	// After getting all the National Questions, we can now query for worldwide
-	rows, err = pool.Query(ctx, QueryQuestionsWorldwide, time.Now().Unix())
+	row := pool.QueryRow(ctx, QueryQuestionsWorldwide, time.Now().Unix())
+	var questionID int
+
+	var japaneseQuestion string
+	var englishQuestion string
+	var germanQuestion string
+	var frenchQuestion string
+	var spanishQuestion string
+	var italianQuestion string
+	var dutchQuestion string
+	var portugueseQuestion string
+	var frenchCanadaQuestion string
+	var catalanQuestion string
+	var russianQuestion string
+
+	var japaneseChoice1 string
+	var englishChoice1 string
+	var germanChoice1 string
+	var frenchChoice1 string
+	var spanishChoice1 string
+	var italianChoice1 string
+	var dutchChoice1 string
+	var portugueseChoice1 string
+	var frenchCanadaChoice1 string
+	var catalanChoice1 string
+	var russianChoice1 string
+
+	var japaneseChoice2 string
+	var englishChoice2 string
+	var germanChoice2 string
+	var frenchChoice2 string
+	var spanishChoice2 string
+	var italianChoice2 string
+	var dutchChoice2 string
+	var portugueseChoice2 string
+	var frenchCanadaChoice2 string
+	var catalanChoice2 string
+	var russianChoice2 string
+
+	var startDate int
+	var endDate int
+
+	err = row.Scan(&questionID,
+		&japaneseQuestion, &englishQuestion, &germanQuestion, &frenchQuestion, &spanishQuestion, &italianQuestion, &dutchQuestion, &portugueseQuestion, &frenchCanadaQuestion, &catalanQuestion, &russianQuestion,
+		&japaneseChoice1, &englishChoice1, &germanChoice1, &frenchChoice1, &spanishChoice1, &italianChoice1, &dutchChoice1, &portugueseChoice1, &frenchCanadaChoice1, &catalanChoice1, &russianChoice1,
+		&japaneseChoice2, &englishChoice2, &germanChoice2, &frenchChoice2, &spanishChoice2, &italianChoice2, &dutchChoice2, &portugueseChoice2, &frenchCanadaChoice2, &catalanChoice2, &russianChoice2,
+		&startDate, &endDate)
 	checkError(err)
 
-	defer rows.Close()
-	for rows.Next() {
-		var questionID int
-
-		var japaneseQuestion string
-		var englishQuestion string
-		var germanQuestion string
-		var frenchQuestion string
-		var spanishQuestion string
-		var italianQuestion string
-		var dutchQuestion string
-		var portugueseQuestion string
-		var frenchCanadaQuestion string
-		var catalanQuestion string
-		var russianQuestion string
-
-		var japaneseChoice1 string
-		var englishChoice1 string
-		var germanChoice1 string
-		var frenchChoice1 string
-		var spanishChoice1 string
-		var italianChoice1 string
-		var dutchChoice1 string
-		var portugueseChoice1 string
-		var frenchCanadaChoice1 string
-		var catalanChoice1 string
-		var russianChoice1 string
-
-		var japaneseChoice2 string
-		var englishChoice2 string
-		var germanChoice2 string
-		var frenchChoice2 string
-		var spanishChoice2 string
-		var italianChoice2 string
-		var dutchChoice2 string
-		var portugueseChoice2 string
-		var frenchCanadaChoice2 string
-		var catalanChoice2 string
-		var russianChoice2 string
-
-		var startDate int
-		var endDate int
-
-		err = rows.Scan(&questionID,
-			&japaneseQuestion, &englishQuestion, &germanQuestion, &frenchQuestion, &spanishQuestion, &italianQuestion, &dutchQuestion, &portugueseQuestion, &frenchCanadaQuestion, &catalanQuestion, &russianQuestion,
-			&japaneseChoice1, &englishChoice1, &germanChoice1, &frenchChoice1, &spanishChoice1, &italianChoice1, &dutchChoice1, &portugueseChoice1, &frenchCanadaChoice1, &catalanChoice1, &russianChoice1,
-			&japaneseChoice2, &englishChoice2, &germanChoice2, &frenchChoice2, &spanishChoice2, &italianChoice2, &dutchChoice2, &portugueseChoice2, &frenchCanadaChoice2, &catalanChoice2, &russianChoice2,
-			&startDate, &endDate)
-		checkError(err)
-
-		worldwideQuestions = append(worldwideQuestions, Question{
-			ID: questionID,
-			QuestionText: LocalizedText{
-				Japanese:       japaneseQuestion,
-				English:        englishQuestion,
-				German:         germanQuestion,
-				French:         frenchQuestion,
-				Spanish:        spanishQuestion,
-				Italian:        italianQuestion,
-				Dutch:          dutchQuestion,
-				Portuguese:     portugueseQuestion,
-				FrenchCanadian: frenchCanadaQuestion,
-				Catalan:        catalanQuestion,
-				Russian:        russianQuestion,
-			},
-			Response1: LocalizedText{
-				Japanese:       japaneseChoice1,
-				English:        englishChoice1,
-				German:         germanChoice1,
-				French:         frenchChoice1,
-				Spanish:        spanishChoice1,
-				Italian:        italianChoice1,
-				Dutch:          dutchChoice1,
-				Portuguese:     portugueseChoice1,
-				FrenchCanadian: frenchCanadaChoice1,
-				Catalan:        catalanChoice1,
-				Russian:        russianChoice1,
-			},
-			Response2: LocalizedText{
-				Japanese:       japaneseChoice2,
-				English:        englishChoice2,
-				German:         germanChoice2,
-				French:         frenchChoice2,
-				Spanish:        spanishChoice2,
-				Italian:        italianChoice2,
-				Dutch:          dutchChoice2,
-				Portuguese:     portugueseChoice2,
-				FrenchCanadian: frenchCanadaChoice2,
-				Catalan:        catalanChoice2,
-				Russian:        russianChoice2,
-			},
-			StartTime: startDate,
-			EndTime:   endDate,
-		})
-	}
+	worldwideQuestions = append(worldwideQuestions, Question{
+		ID: questionID,
+		QuestionText: LocalizedText{
+			Japanese:       japaneseQuestion,
+			English:        englishQuestion,
+			German:         germanQuestion,
+			French:         frenchQuestion,
+			Spanish:        spanishQuestion,
+			Italian:        italianQuestion,
+			Dutch:          dutchQuestion,
+			Portuguese:     portugueseQuestion,
+			FrenchCanadian: frenchCanadaQuestion,
+			Catalan:        catalanQuestion,
+			Russian:        russianQuestion,
+		},
+		Response1: LocalizedText{
+			Japanese:       japaneseChoice1,
+			English:        englishChoice1,
+			German:         germanChoice1,
+			French:         frenchChoice1,
+			Spanish:        spanishChoice1,
+			Italian:        italianChoice1,
+			Dutch:          dutchChoice1,
+			Portuguese:     portugueseChoice1,
+			FrenchCanadian: frenchCanadaChoice1,
+			Catalan:        catalanChoice1,
+			Russian:        russianChoice1,
+		},
+		Response2: LocalizedText{
+			Japanese:       japaneseChoice2,
+			English:        englishChoice2,
+			German:         germanChoice2,
+			French:         frenchChoice2,
+			Spanish:        spanishChoice2,
+			Italian:        italianChoice2,
+			Dutch:          dutchChoice2,
+			Portuguese:     portugueseChoice2,
+			FrenchCanadian: frenchCanadaChoice2,
+			Catalan:        catalanChoice2,
+			Russian:        russianChoice2,
+		},
+		StartTime: startDate,
+		EndTime:   endDate,
+	})
 }
