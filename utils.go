@@ -1,6 +1,8 @@
 package main
 
 import (
+	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -163,7 +165,7 @@ func GetExtension() string {
 	}
 }
 
-func GetFilename() string {
+func GetFilename(countryCode string) string {
 	if fileType == Normal {
 		return "voting.bin"
 	} else {
@@ -171,6 +173,13 @@ func GetFilename() string {
 		year := strconv.Itoa(date.Year())
 		month := ZFill(uint8(date.Month()), 2)
 		day := ZFill(uint8(date.Day()), 2)
+
+		// Create underlying directory if needed
+		err := os.Mkdir(fmt.Sprintf("votes/%s/%s", countryCode, year), 0755)
+		if !os.IsExist(err) {
+			checkError(err)
+		}
+
 		return year + "/" + month + day + GetExtension()
 	}
 }

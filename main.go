@@ -154,7 +154,7 @@ func main() {
 
 			signed := SignFile(compressed)
 
-			filename := GetFilename()
+			filename := GetFilename(strCountryCode)
 
 			create, err := os.Create(fmt.Sprintf("votes/%s/%s", strCountryCode, filename))
 			checkError(err)
