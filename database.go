@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"github.com/jackc/pgx/v4"
-	"os"
 	"strconv"
 	"time"
 )
@@ -177,7 +176,6 @@ func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalRes
 	}
 
 	fmt.Println(questionID)
-	os.Exit(0)
 	// Now query the votes table
 	rows, err := pool.Query(ctx, QueryResults, questionID)
 	checkError(err)
