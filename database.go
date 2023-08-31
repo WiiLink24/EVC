@@ -201,21 +201,18 @@ func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalRes
 			results.FemaleVotersResponse2 += ansCNT[3]
 
 			for i := 0; i < int(numberOfRegions[v.currentCountryCode]); i++ {
-				entryNumber := 0
 				// Nintendo made the region ID start at index 1, with that being the country.
 				if i == regionID-2 {
 					nationalDetailedResults[i].VotersResponse1Number += ansCNT[0] + ansCNT[1]
 					nationalDetailedResults[i].VotersResponse2Number += ansCNT[2] + ansCNT[3]
 					if _, ok := positionTable[v.currentCountryCode]; ok {
 						nationalDetailedResults[i].PositionTableEntryNumber = positionTable[v.currentCountryCode][i]
-						nationalDetailedResults[i].PositionEntryTableCount = uint8(sum(positionTable[v.currentCountryCode][:i]))
 					} else {
 						nationalDetailedResults[i].PositionTableEntryNumber = 0
-						nationalDetailedResults[i].PositionEntryTableCount = 0
 					}
 				}
 
-				entryNumber += 1
+				nationalDetailedResults[i].PositionEntryTableCount = uint8(sum(positionTable[v.currentCountryCode][:i]))
 			}
 		} else if typeCD == Prediction {
 			results.PredictorsResponse1 += ansCNT[0] + ansCNT[1]
