@@ -211,7 +211,9 @@ func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalRes
 						nationalDetailedResults[i].PositionEntryTableCount = 0
 					}
 				}
-				nationalDetailedResults[i].PositionTableEntryNumber = uint32(sum(positionTable[v.currentCountryCode][:i]))
+				if _, ok := positionTable[v.currentCountryCode]; ok {
+					nationalDetailedResults[i].PositionTableEntryNumber = uint32(sum(positionTable[v.currentCountryCode][:i]))
+				}
 			}
 		} else if typeCD == Prediction {
 			results.PredictorsResponse1 += ansCNT[0] + ansCNT[1]
