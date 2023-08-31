@@ -202,7 +202,8 @@ func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalRes
 
 			for i := 0; i < int(numberOfRegions[v.currentCountryCode]); i++ {
 				entryNumber := 0
-				if i == regionID {
+				// Nintendo made the region ID start at index 1, with that being the country.
+				if i == regionID-2 {
 					nationalDetailedResults[i].VotersResponse1Number = ansCNT[0] + ansCNT[1]
 					nationalDetailedResults[i].VotersResponse2Number = ansCNT[2] + ansCNT[3]
 					nationalDetailedResults[i].PositionTableEntryNumber = uint32(entryNumber)
