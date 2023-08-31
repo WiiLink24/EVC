@@ -424,7 +424,7 @@ var countriesSupportedLanguages = map[uint8][]LanguageCode{
 	// TODO: AFTER HERE!!!!
 }
 
-var positionTable = map[uint8][]uint32{
+var positionTable = map[uint8][]uint8{
 	1:   {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2},
 	16:  {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1},
 	18:  {1, 1, 2, 1, 1, 3, 1, 1, 1, 1, 1, 4, 3},
