@@ -207,7 +207,7 @@ func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalRes
 					nationalDetailedResults[i].VotersResponse1Number = ansCNT[0] + ansCNT[1]
 					nationalDetailedResults[i].VotersResponse2Number = ansCNT[2] + ansCNT[3]
 					nationalDetailedResults[i].PositionTableEntryNumber = uint32(entryNumber)
-					nationalDetailedResults[i].PositionEntryTableCount = 1
+					nationalDetailedResults[i].PositionEntryTableCount = uint8(i)
 				}
 
 				entryNumber += 1
