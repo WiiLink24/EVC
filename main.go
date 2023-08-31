@@ -112,9 +112,17 @@ func main() {
 
 			if fileType == Normal || fileType == _Question {
 				// Questions
-				votes.MakeNationalQuestionsTable()
-				votes.MakeWorldWideQuestionsTable()
-				votes.MakeQuestionsTable()
+				if len(questions) != 0 {
+					votes.MakeNationalQuestionsTable()
+				}
+
+				if len(worldwideQuestions) != 0 {
+					votes.MakeWorldWideQuestionsTable()
+				}
+
+				if len(worldwideQuestions) != 0 || len(questions) != 0 {
+					votes.MakeQuestionsTable()
+				}
 			}
 
 			// National Results

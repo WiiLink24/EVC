@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"github.com/jackc/pgx/v4"
 	"strconv"
 	"time"
@@ -175,7 +174,6 @@ func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalRes
 		StartingNationalResultDetailedNumber: 0,
 	}
 
-	fmt.Println(questionID)
 	// Now query the votes table
 	rows, err := pool.Query(ctx, QueryResults, questionID)
 	checkError(err)
@@ -277,8 +275,6 @@ func PrepareQuestions() {
 			&startDate, &endDate)
 		checkError(err)
 
-		fmt.Println(englishQuestion)
-		fmt.Println(questionID)
 		questions = append(questions, Question{
 			ID: questionID,
 			QuestionText: LocalizedText{
@@ -373,7 +369,12 @@ func PrepareQuestions() {
 		&japaneseChoice1, &englishChoice1, &germanChoice1, &frenchChoice1, &spanishChoice1, &italianChoice1, &dutchChoice1, &portugueseChoice1, &frenchCanadaChoice1, &catalanChoice1, &russianChoice1,
 		&japaneseChoice2, &englishChoice2, &germanChoice2, &frenchChoice2, &spanishChoice2, &italianChoice2, &dutchChoice2, &portugueseChoice2, &frenchCanadaChoice2, &catalanChoice2, &russianChoice2,
 		&startDate, &endDate)
-	checkError(err)
+	if err == pgx.ErrNoRows {
+		// No question, return and let that be it.
+		return
+	} else {
+		checkError(err)
+	}
 
 	worldwideQuestions = append(worldwideQuestions, Question{
 		ID: questionID,
