@@ -185,8 +185,8 @@ func GetFilename(countryCode string) string {
 }
 
 // Get the sum of a slice
-func sum(arr []uint32) uint32 {
-	var _sum uint32
+func sum(arr []uint8) uint8 {
+	var _sum uint8
 	for _, valueInt := range arr {
 		_sum += valueInt
 	}
