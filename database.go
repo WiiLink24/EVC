@@ -169,9 +169,13 @@ func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalRes
 		PredictorsResponse1:                  0,
 		PredictorsResponse2:                  0,
 		ShowVoterNumberFlag:                  1,
-		ShowDetailedResultsFlag:              1,
+		ShowDetailedResultsFlag:              0,
 		NationalResultDetailedNumber:         numberOfRegions[v.currentCountryCode],
 		StartingNationalResultDetailedNumber: 0,
+	}
+
+	if _, ok := positionTable[v.currentCountryCode]; ok {
+		results.ShowDetailedResultsFlag = 1
 	}
 
 	// Now query the votes table
