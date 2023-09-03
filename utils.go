@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/mitchellh/go-wordwrap"
 	"os"
 	"strconv"
 	"strings"
@@ -191,4 +192,19 @@ func sum(arr []uint8) uint8 {
 		_sum += valueInt
 	}
 	return _sum
+}
+
+func wrapText(text string) string {
+	var returnText string
+	textList := wordwrap.WrapString(text, 50)
+	for i, s := range strings.Split(textList, "\n") {
+		if i == 0 {
+			returnText = s
+		} else {
+			returnText += "\n"
+			returnText += s
+		}
+	}
+
+	return returnText
 }
