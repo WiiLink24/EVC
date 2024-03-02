@@ -113,6 +113,4 @@ var supportedLanguages = []string{
 	"Nederlands",
 	"Português",
 	"Français",
-	"Русский",
-	"Català",
 }
