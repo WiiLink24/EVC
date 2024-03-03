@@ -3,21 +3,15 @@ package main
 import (
 	"bytes"
 	"context"
-	"crypto"
-	"crypto/rand"
-	"crypto/rsa"
-	"crypto/sha1"
-	"crypto/x509"
 	"encoding/binary"
-	"encoding/pem"
 	"fmt"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/wii-tools/lz11"
 	"hash/crc32"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"sync"
 )
 
@@ -39,7 +33,7 @@ type Votes struct {
 
 	// Static values
 	currentCountryCode  uint8
-	tempDetailedResults []DetailedNationalResult
+	tempDetailedResults [][]DetailedNationalResult
 }
 
 // SQL variables.
@@ -85,15 +79,35 @@ func main() {
 		checkError(err)
 	}
 
-	// Next prepare the questions for every region + Worldwide results.
-	PrepareQuestions()
-	PrepareWorldWideResults()
+	if fileType == Normal {
+		// voting.bin requires all questions and all applicable results.
+		PrepareNationalQuestions()
+		PrepareWorldWideQuestion()
+
+		PrepareWorldWideResults()
+	} else if fileType == Results {
+		// National results will generate themselves
+		if locality == Worldwide {
+			PrepareWorldWideResults()
+		}
+	} else if fileType == _Question {
+		if locality == Worldwide {
+			PrepareWorldWideQuestion()
+		} else {
+			PrepareNationalQuestions()
+		}
+	}
 
 	wg := sync.WaitGroup{}
+	runtime.GOMAXPROCS(runtime.NumCPU())
+	semaphore := make(chan any, 5)
+
 	wg.Add(len(countryCodes))
 	for _, countryCode := range countryCodes {
 		go func(countryCode uint8) {
 			defer wg.Done()
+			semaphore <- struct{}{}
+
 			votes := Votes{}
 			votes.currentCountryCode = countryCode
 
@@ -112,15 +126,15 @@ func main() {
 
 			if fileType == Normal || fileType == _Question {
 				// Questions
-				if len(questions) != 0 {
+				if len(nationalQuestions) != 0 {
 					votes.MakeNationalQuestionsTable()
 				}
 
-				if len(worldwideQuestions) != 0 {
+				if worldwideQuestion.ID != 0 {
 					votes.MakeWorldWideQuestionsTable()
 				}
 
-				if len(worldwideQuestions) != 0 || len(questions) != 0 {
+				if worldwideQuestion.ID != 0 || len(nationalQuestions) != 0 {
 					votes.MakeQuestionsTable()
 				}
 			}
@@ -164,11 +178,10 @@ func main() {
 
 			filename := GetFilename(strCountryCode)
 
-			create, err := os.Create(fmt.Sprintf("votes/%s/%s", strCountryCode, filename))
+			err = os.WriteFile(fmt.Sprintf("votes/%s/%s", strCountryCode, filename), signed, 0666)
 			checkError(err)
 
-			_, err = create.Write(signed)
-			checkError(err)
+			<-semaphore
 		}(countryCode)
 	}
 
@@ -218,34 +231,4 @@ func (v *Votes) GetCurrentSize() uint32 {
 	v.WriteAll(buffer)
 
 	return uint32(buffer.Len())
-}
-
-func SignFile(contents []byte) []byte {
-	buffer := bytes.NewBuffer(nil)
-
-	// Get RSA key and sign
-	rsaData, err := ioutil.ReadFile("Private.pem")
-	checkError(err)
-
-	rsaBlock, _ := pem.Decode(rsaData)
-
-	parsedKey, err := x509.ParsePKCS1PrivateKey(rsaBlock.Bytes)
-	checkError(err)
-
-	// Hash our data then sign
-	hash := sha1.New()
-	_, err = hash.Write(contents)
-	checkError(err)
-
-	contentsHashSum := hash.Sum(nil)
-
-	reader := rand.Reader
-	signature, err := rsa.SignPKCS1v15(reader, parsedKey, crypto.SHA1, contentsHashSum)
-	checkError(err)
-
-	buffer.Write(make([]byte, 64))
-	buffer.Write(signature)
-	buffer.Write(contents)
-
-	return buffer.Bytes()
 }

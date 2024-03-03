@@ -24,7 +24,7 @@ func (v *Votes) MakeQuestionsTable() {
 	v.Header.QuestionTextInfoTableOffset = v.GetCurrentSize()
 
 	// Get all the questions for the current country.
-	for _, _ = range append(append([]Question{}, questions...), worldwideQuestions...) {
+	for _, _ = range append(append([]Question{}, nationalQuestions...), worldwideQuestion) {
 		for _, language := range GetSupportedLanguages(v.currentCountryCode) {
 			v.QuestionTextInfoTable = append(v.QuestionTextInfoTable, QuestionTextInfo{
 				LanguageCode:    uint8(language),
@@ -37,7 +37,7 @@ func (v *Votes) MakeQuestionsTable() {
 
 	// Now the text
 	index := 0
-	for _, question := range append(append([]Question{}, questions...), worldwideQuestions...) {
+	for _, question := range append(append([]Question{}, nationalQuestions...), worldwideQuestion) {
 		for _, language := range GetSupportedLanguages(v.currentCountryCode) {
 			v.QuestionTextInfoTable[index].QuestionOffset = v.GetCurrentSize()
 

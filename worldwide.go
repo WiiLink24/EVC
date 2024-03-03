@@ -31,20 +31,17 @@ func (v *Votes) MakeWorldWideQuestionsTable() {
 
 	entryNum := len(v.NationalQuestionTable) * len(countriesSupportedLanguages[v.currentCountryCode])
 
-	for _, question := range worldwideQuestions {
-		v.WorldWideQuestionTable = append(v.WorldWideQuestionTable, QuestionInfo{
-			PollID: uint32(question.ID),
-			// TODO: Implement categories within db
-			PollCategory1:              0,
-			PollCategory2:              0,
-			StartingTimestamp:          CreateTimestamp(question.StartTime),
-			EndingTimestamp:            CreateTimestamp(question.EndTime),
-			NumberOfSupportedLanguages: uint8(len(countriesSupportedLanguages[v.currentCountryCode])),
-			QuestionTableEntryNumber:   uint32(entryNum),
-		})
+	v.WorldWideQuestionTable = append(v.WorldWideQuestionTable, QuestionInfo{
+		PollID:                     uint32(worldwideQuestion.ID),
+		PollCategory1:              uint8(worldwideQuestion.Category),
+		PollCategory2:              categoryKV[worldwideQuestion.Category],
+		StartingTimestamp:          CreateTimestamp(int(worldwideQuestion.Time.Unix())),
+		EndingTimestamp:            CreateTimestamp(int(worldwideQuestion.Time.Unix())) + 21600,
+		NumberOfSupportedLanguages: uint8(len(countriesSupportedLanguages[v.currentCountryCode])),
+		QuestionTableEntryNumber:   uint32(entryNum),
+	})
 
-		entryNum += len(countriesSupportedLanguages[v.currentCountryCode])
-	}
+	entryNum += len(countriesSupportedLanguages[v.currentCountryCode])
 
 	v.Header.NumberOfWorldWideQuestions = uint8(len(v.WorldWideQuestionTable))
 }

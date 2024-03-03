@@ -1,41 +1,46 @@
 package main
 
 import (
+	"errors"
 	"github.com/jackc/pgx/v4"
 	"strconv"
 	"time"
 )
 
 const (
-	// QueryQuestions queries the questions table for regular questions.
-	QueryQuestions = `SELECT question_id, 
-						content_japanese, content_english, content_german, content_french, content_spanish, content_italian, content_dutch, content_portuguese, content_french_canada, content_catalan, content_russian,
-						choice1_japanese, choice1_english, choice1_german, choice1_french, choice1_spanish, choice1_italian, choice1_dutch, choice1_portuguese, choice1_french_canada, choice1_catalan, choice1_russian,
-						choice2_japanese, choice2_english, choice2_german, choice2_french, choice2_spanish, choice2_italian, choice2_dutch, choice2_portuguese, choice2_french_canada, choice2_catalan, choice2_russian,
-						start_date, end_date
-						FROM questions
-						WHERE end_date > $1
-						AND start_date <= $1  
-						AND worldwide = false
-						ORDER BY end_date ASC LIMIT 3`
+	// QueryNationalQuestions queries the questions table for regular questions.
+	QueryNationalQuestions = `SELECT * FROM questions 
+							WHERE date > CURRENT_DATE - INTERVAL '7' DAY
+							AND date <= CURRENT_DATE
+							AND type = 'n'
+							ORDER BY question_id
+							LIMIT 3`
 
 	// QueryQuestionsWorldwide queries the questions table for worldwide questions.
-	QueryQuestionsWorldwide = `SELECT question_id, 
-						content_japanese, content_english, content_german, content_french, content_spanish, content_italian, content_dutch, content_portuguese, content_french_canada, content_catalan, content_russian,
-						choice1_japanese, choice1_english, choice1_german, choice1_french, choice1_spanish, choice1_italian, choice1_dutch, choice1_portuguese, choice1_french_canada, choice1_catalan, choice1_russian,
-						choice2_japanese, choice2_english, choice2_german, choice2_french, choice2_spanish, choice2_italian, choice2_dutch, choice2_portuguese, choice2_french_canada, choice2_catalan, choice2_russian,
-						start_date, end_date
-						FROM questions
-						WHERE end_date > $1
-						AND start_date <= $1  
-						AND worldwide = true`
+	QueryQuestionsWorldwide = `SELECT * FROM questions 
+         					WHERE date > CURRENT_DATE - INTERVAL '15' DAY
+           					AND date <= CURRENT_DATE
+           					AND type = 'w'
+         					ORDER BY question_id`
 
-	// QueryResults queries the votes table for the results of a specified question.
-	QueryResults = `SELECT type_cd, country_id, region_id, ans_cnt FROM votes WHERE question_id = $1`
+	// QueryApplicableNationalResults queries the questions table for national questions that have results.
+	QueryApplicableNationalResults = `SELECT question_id FROM questions
+							WHERE date <= CURRENT_DATE - INTERVAL '7' DAY
+  							AND type = 'n'
+							ORDER BY question_id DESC LIMIT 6`
 
-	BaseQueryWorldwide = `SELECT question_id FROM questions WHERE end_date < $1 AND worldwide = true ORDER BY end_date DESC LIMIT 1`
+	// QueryApplicableWorldwideResult queries the questions table for national questions that have results.
+	QueryApplicableWorldwideResult = `SELECT question_id FROM questions
+							WHERE date <= CURRENT_DATE - INTERVAL '15' DAY
+  							AND type = 'w'
+							ORDER BY question_id DESC LIMIT 6`
 
-	BaseQueryNational = `SELECT question_id FROM questions WHERE end_date < $1 AND worldwide = false ORDER BY end_date DESC LIMIT 1`
+	QueryVoterData = `SELECT votes."typeCD", votes."regionID", votes."ansCNT" FROM votes 
+                    WHERE votes."questionID" = $1 
+                    AND votes."countryID" = $2`
+
+	QueryWorldwideVoterData = `SELECT votes."typeCD", votes."countryID", votes."regionID", votes."ansCNT" FROM votes 
+                    WHERE votes."questionID" = $1`
 )
 
 type LocalizedText struct {
@@ -48,8 +53,6 @@ type LocalizedText struct {
 	Dutch          string
 	Portuguese     string
 	FrenchCanadian string
-	Catalan        string
-	Russian        string
 }
 
 type Question struct {
@@ -57,23 +60,28 @@ type Question struct {
 	QuestionText LocalizedText
 	Response1    LocalizedText
 	Response2    LocalizedText
-	StartTime    int
-	EndTime      int
+	Category     int
+	Time         time.Time
 }
 
-var questions []Question
-var worldwideQuestions []Question
-var worldWideDetailedResults []DetailedWorldwideResult
-var worldWideResult WorldWideResult
+var (
+	// Questions
+	nationalQuestions []Question
+	worldwideQuestion Question
+
+	// Results
+	worldWideDetailedResults []DetailedWorldwideResult
+	worldWideResult          WorldWideResult
+)
 
 // PrepareWorldWideResults returns the WorldWideResult for the WorldWide vote,
 // as well as create a DetailedWorldwideResult slice.
 func PrepareWorldWideResults() {
 	var questionID int
 
-	row := pool.QueryRow(ctx, BaseQueryWorldwide, time.Now().Unix())
+	row := pool.QueryRow(ctx, QueryApplicableWorldwideResult)
 	err := row.Scan(&questionID)
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return
 	}
 
@@ -95,7 +103,7 @@ func PrepareWorldWideResults() {
 	worldWideDetailedResults = make([]DetailedWorldwideResult, len(countryCodes)+1)
 
 	// Now we query votes table
-	rows, err := pool.Query(ctx, QueryResults, questionID)
+	rows, err := pool.Query(ctx, QueryWorldwideVoterData, questionID)
 	checkError(err)
 
 	defer rows.Close()
@@ -147,285 +155,151 @@ func PrepareWorldWideResults() {
 	worldWideResult.NumberOfWorldWideDetailedTables = uint8(len(worldWideDetailedResults))
 }
 
-func (v *Votes) PrepareNationalResults() (*NationalResult, []DetailedNationalResult) {
-	var questionID int
+func (v *Votes) PrepareNationalResults() ([]NationalResult, [][]DetailedNationalResult) {
+	var nationalResults []NationalResult
+	var detailedNationalResultsForResults [][]DetailedNationalResult
 
-	row := pool.QueryRow(ctx, BaseQueryNational, time.Now().Unix())
-	err := row.Scan(&questionID)
-	if err == pgx.ErrNoRows {
+	// First query for applicable results.
+	rows, err := pool.Query(ctx, QueryApplicableNationalResults)
+	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
+
 	checkError(err)
 
-	// Now that we know there is a question, init the nationalDetailedResults array
-	nationalDetailedResults := make([]DetailedNationalResult, numberOfRegions[v.currentCountryCode])
-
-	results := NationalResult{
-		PollID:                               uint32(questionID),
-		MaleVotersResponse1:                  0,
-		MaleVotersResponse2:                  0,
-		FemaleVotersResponse1:                0,
-		FemaleVotersResponse2:                0,
-		PredictorsResponse1:                  0,
-		PredictorsResponse2:                  0,
-		ShowVoterNumberFlag:                  1,
-		ShowDetailedResultsFlag:              0,
-		NationalResultDetailedNumber:         numberOfRegions[v.currentCountryCode],
-		StartingNationalResultDetailedNumber: 0,
-	}
-
-	if _, ok := positionTable[v.currentCountryCode]; ok {
-		results.ShowDetailedResultsFlag = 1
-	}
-
-	// Now query the votes table
-	rows, err := pool.Query(ctx, QueryResults, questionID)
-	checkError(err)
-
+	index := 0
 	defer rows.Close()
 	for rows.Next() {
-		var typeCD VoteType
-		var countryID int
-		var regionID int
-		var ansCNTInt int
-
-		err = rows.Scan(&typeCD, &countryID, &regionID, &ansCNTInt)
+		// Now get voter data.
+		var questionID int
+		err = rows.Scan(&questionID)
 		checkError(err)
 
-		if countryID != int(v.currentCountryCode) {
-			continue
+		// Allocate space for the detailed results and the base result metadata
+		nationalDetailedResults := make([]DetailedNationalResult, numberOfRegions[v.currentCountryCode])
+		results := NationalResult{
+			PollID:                               uint32(questionID),
+			MaleVotersResponse1:                  0,
+			MaleVotersResponse2:                  0,
+			FemaleVotersResponse1:                0,
+			FemaleVotersResponse2:                0,
+			PredictorsResponse1:                  0,
+			PredictorsResponse2:                  0,
+			ShowVoterNumberFlag:                  1,
+			ShowDetailedResultsFlag:              0,
+			NationalResultDetailedNumber:         numberOfRegions[v.currentCountryCode],
+			StartingNationalResultDetailedNumber: uint32(numberOfRegions[v.currentCountryCode] * uint8(index)),
 		}
 
-		ansCNT := FormatAnsCnt(strconv.FormatInt(int64(ansCNTInt), 10))
-		if typeCD == Vote {
-			// Main results
-			results.MaleVotersResponse1 += ansCNT[0]
-			results.MaleVotersResponse2 += ansCNT[2]
-			results.FemaleVotersResponse1 += ansCNT[1]
-			results.FemaleVotersResponse2 += ansCNT[3]
+		voterRows, err := pool.Query(ctx, QueryVoterData, questionID, v.currentCountryCode)
+		checkError(err)
 
-			for i := 0; i < int(numberOfRegions[v.currentCountryCode]); i++ {
-				// Nintendo made the region ID start at index 1, with that being the country.
-				if i == regionID-2 {
-					nationalDetailedResults[i].VotersResponse1Number += ansCNT[0] + ansCNT[1]
-					nationalDetailedResults[i].VotersResponse2Number += ansCNT[2] + ansCNT[3]
+		for voterRows.Next() {
+			var typeCD VoteType
+			var regionID int
+			var ansCNTInt int
+
+			err = voterRows.Scan(&typeCD, &regionID, &ansCNTInt)
+			checkError(err)
+
+			// Show the country map if we got a position table
+			if _, ok := positionTable[v.currentCountryCode]; ok {
+				results.ShowDetailedResultsFlag = 1
+			}
+
+			ansCNT := FormatAnsCnt(strconv.FormatInt(int64(ansCNTInt), 10))
+			if typeCD == Vote {
+				// Main results
+				results.MaleVotersResponse1 += ansCNT[0]
+				results.MaleVotersResponse2 += ansCNT[2]
+				results.FemaleVotersResponse1 += ansCNT[1]
+				results.FemaleVotersResponse2 += ansCNT[3]
+
+				for i := 0; i < int(numberOfRegions[v.currentCountryCode]); i++ {
+					// Nintendo made the region ID start at index 1, with that being the country.
+					if i == regionID-2 {
+						nationalDetailedResults[i].VotersResponse1Number += ansCNT[0] + ansCNT[1]
+						nationalDetailedResults[i].VotersResponse2Number += ansCNT[2] + ansCNT[3]
+						if _, ok := positionTable[v.currentCountryCode]; ok {
+							nationalDetailedResults[i].PositionEntryTableCount = positionTable[v.currentCountryCode][i]
+						} else {
+							nationalDetailedResults[i].PositionEntryTableCount = 0
+						}
+					}
 					if _, ok := positionTable[v.currentCountryCode]; ok {
-						nationalDetailedResults[i].PositionEntryTableCount = positionTable[v.currentCountryCode][i]
-					} else {
-						nationalDetailedResults[i].PositionEntryTableCount = 0
+						nationalDetailedResults[i].PositionTableEntryNumber = uint32(sum(positionTable[v.currentCountryCode][:i]))
 					}
 				}
-				if _, ok := positionTable[v.currentCountryCode]; ok {
-					nationalDetailedResults[i].PositionTableEntryNumber = uint32(sum(positionTable[v.currentCountryCode][:i]))
-				}
+			} else if typeCD == Prediction {
+				results.PredictorsResponse1 += ansCNT[0] + ansCNT[1]
+				results.PredictorsResponse2 += ansCNT[2] + ansCNT[3]
 			}
-		} else if typeCD == Prediction {
-			results.PredictorsResponse1 += ansCNT[0] + ansCNT[1]
-			results.PredictorsResponse2 += ansCNT[2] + ansCNT[3]
+		}
+
+		index++
+		nationalResults = append(nationalResults, results)
+		detailedNationalResultsForResults = append(detailedNationalResultsForResults, nationalDetailedResults)
+		voterRows.Close()
+
+		if fileType == Results {
+			// Only one result is required for this file type.
+			break
 		}
 	}
 
-	return &results, nationalDetailedResults
+	return nationalResults, detailedNationalResultsForResults
 }
 
-func PrepareQuestions() {
-	// Query all questions except for Worldwide.
-	rows, err := pool.Query(ctx, QueryQuestions, time.Now().Unix())
+func PrepareNationalQuestions() {
+	rows, err := pool.Query(ctx, QueryNationalQuestions)
 	checkError(err)
 
 	defer rows.Close()
 	for rows.Next() {
-		var questionID int
-
-		var japaneseQuestion string
-		var englishQuestion string
-		var germanQuestion string
-		var frenchQuestion string
-		var spanishQuestion string
-		var italianQuestion string
-		var dutchQuestion string
-		var portugueseQuestion string
-		var frenchCanadaQuestion string
-		var catalanQuestion string
-		var russianQuestion string
-
-		var japaneseChoice1 string
-		var englishChoice1 string
-		var germanChoice1 string
-		var frenchChoice1 string
-		var spanishChoice1 string
-		var italianChoice1 string
-		var dutchChoice1 string
-		var portugueseChoice1 string
-		var frenchCanadaChoice1 string
-		var catalanChoice1 string
-		var russianChoice1 string
-
-		var japaneseChoice2 string
-		var englishChoice2 string
-		var germanChoice2 string
-		var frenchChoice2 string
-		var spanishChoice2 string
-		var italianChoice2 string
-		var dutchChoice2 string
-		var portugueseChoice2 string
-		var frenchCanadaChoice2 string
-		var catalanChoice2 string
-		var russianChoice2 string
-
-		var startDate int
-		var endDate int
-
-		err = rows.Scan(&questionID,
-			&japaneseQuestion, &englishQuestion, &germanQuestion, &frenchQuestion, &spanishQuestion, &italianQuestion, &dutchQuestion, &portugueseQuestion, &frenchCanadaQuestion, &catalanQuestion, &russianQuestion,
-			&japaneseChoice1, &englishChoice1, &germanChoice1, &frenchChoice1, &spanishChoice1, &italianChoice1, &dutchChoice1, &portugueseChoice1, &frenchCanadaChoice1, &catalanChoice1, &russianChoice1,
-			&japaneseChoice2, &englishChoice2, &germanChoice2, &frenchChoice2, &spanishChoice2, &italianChoice2, &dutchChoice2, &portugueseChoice2, &frenchCanadaChoice2, &catalanChoice2, &russianChoice2,
-			&startDate, &endDate)
+		question := Question{}
+		err = rows.Scan(&question.ID,
+			&question.QuestionText.English, &question.QuestionText.German, &question.QuestionText.French,
+			&question.QuestionText.Spanish, &question.QuestionText.Italian, &question.QuestionText.Dutch,
+			&question.QuestionText.Portuguese, &question.QuestionText.FrenchCanadian,
+			&question.Response1.English, &question.Response1.German, &question.Response1.French,
+			&question.Response1.Spanish, &question.Response1.Italian, &question.Response1.Dutch,
+			&question.Response1.Portuguese, &question.Response1.FrenchCanadian,
+			&question.Response2.English, &question.Response2.German, &question.Response2.French,
+			&question.Response2.Spanish, &question.Response2.Italian, &question.Response2.Dutch,
+			&question.Response2.Portuguese, &question.Response2.FrenchCanadian, nil, &question.Category,
+			&question.Time,
+		)
 		checkError(err)
 
-		questions = append(questions, Question{
-			ID: questionID,
-			QuestionText: LocalizedText{
-				Japanese:       wrapText(japaneseQuestion),
-				English:        wrapText(englishQuestion),
-				German:         wrapText(germanQuestion),
-				French:         wrapText(frenchQuestion),
-				Spanish:        wrapText(spanishQuestion),
-				Italian:        wrapText(italianQuestion),
-				Dutch:          wrapText(dutchQuestion),
-				Portuguese:     wrapText(portugueseQuestion),
-				FrenchCanadian: wrapText(frenchCanadaQuestion),
-				Catalan:        wrapText(catalanQuestion),
-				Russian:        wrapText(russianQuestion),
-			},
-			Response1: LocalizedText{
-				Japanese:       japaneseChoice1,
-				English:        englishChoice1,
-				German:         germanChoice1,
-				French:         frenchChoice1,
-				Spanish:        spanishChoice1,
-				Italian:        italianChoice1,
-				Dutch:          dutchChoice1,
-				Portuguese:     portugueseChoice1,
-				FrenchCanadian: frenchCanadaChoice1,
-				Catalan:        catalanChoice1,
-				Russian:        russianChoice1,
-			},
-			Response2: LocalizedText{
-				Japanese:       japaneseChoice2,
-				English:        englishChoice2,
-				German:         germanChoice2,
-				French:         frenchChoice2,
-				Spanish:        spanishChoice2,
-				Italian:        italianChoice2,
-				Dutch:          dutchChoice2,
-				Portuguese:     portugueseChoice2,
-				FrenchCanadian: frenchCanadaChoice2,
-				Catalan:        catalanChoice2,
-				Russian:        russianChoice2,
-			},
-			StartTime: startDate,
-			EndTime:   endDate,
-		})
+		// Apply wordwrap for each question
+		question.SanitizeText()
+
+		// Finally append to the list of national questions.
+		nationalQuestions = append(nationalQuestions, question)
 	}
+}
 
-	// After getting all the National Questions, we can now query for worldwide
-	row := pool.QueryRow(ctx, QueryQuestionsWorldwide, time.Now().Unix())
-	var questionID int
+func PrepareWorldWideQuestion() {
+	row := pool.QueryRow(ctx, QueryQuestionsWorldwide)
 
-	var japaneseQuestion string
-	var englishQuestion string
-	var germanQuestion string
-	var frenchQuestion string
-	var spanishQuestion string
-	var italianQuestion string
-	var dutchQuestion string
-	var portugueseQuestion string
-	var frenchCanadaQuestion string
-	var catalanQuestion string
-	var russianQuestion string
+	question := Question{}
+	err := row.Scan(&question.ID,
+		&question.QuestionText.English, &question.QuestionText.German, &question.QuestionText.French,
+		&question.QuestionText.Spanish, &question.QuestionText.Italian, &question.QuestionText.Dutch,
+		&question.QuestionText.Portuguese, &question.QuestionText.FrenchCanadian,
+		&question.Response1.English, &question.Response1.German, &question.Response1.French,
+		&question.Response1.Spanish, &question.Response1.Italian, &question.Response1.Dutch,
+		&question.Response1.Portuguese, &question.Response1.FrenchCanadian,
+		&question.Response2.English, &question.Response2.German, &question.Response2.French,
+		&question.Response2.Spanish, &question.Response2.Italian, &question.Response2.Dutch,
+		&question.Response2.Portuguese, &question.Response2.FrenchCanadian, nil, &question.Category,
+		&question.Time,
+	)
+	checkError(err)
 
-	var japaneseChoice1 string
-	var englishChoice1 string
-	var germanChoice1 string
-	var frenchChoice1 string
-	var spanishChoice1 string
-	var italianChoice1 string
-	var dutchChoice1 string
-	var portugueseChoice1 string
-	var frenchCanadaChoice1 string
-	var catalanChoice1 string
-	var russianChoice1 string
+	// Apply wordwrap for each question
+	question.SanitizeText()
 
-	var japaneseChoice2 string
-	var englishChoice2 string
-	var germanChoice2 string
-	var frenchChoice2 string
-	var spanishChoice2 string
-	var italianChoice2 string
-	var dutchChoice2 string
-	var portugueseChoice2 string
-	var frenchCanadaChoice2 string
-	var catalanChoice2 string
-	var russianChoice2 string
-
-	var startDate int
-	var endDate int
-
-	err = row.Scan(&questionID,
-		&japaneseQuestion, &englishQuestion, &germanQuestion, &frenchQuestion, &spanishQuestion, &italianQuestion, &dutchQuestion, &portugueseQuestion, &frenchCanadaQuestion, &catalanQuestion, &russianQuestion,
-		&japaneseChoice1, &englishChoice1, &germanChoice1, &frenchChoice1, &spanishChoice1, &italianChoice1, &dutchChoice1, &portugueseChoice1, &frenchCanadaChoice1, &catalanChoice1, &russianChoice1,
-		&japaneseChoice2, &englishChoice2, &germanChoice2, &frenchChoice2, &spanishChoice2, &italianChoice2, &dutchChoice2, &portugueseChoice2, &frenchCanadaChoice2, &catalanChoice2, &russianChoice2,
-		&startDate, &endDate)
-	if err == pgx.ErrNoRows {
-		// No question, return and let that be it.
-		return
-	} else {
-		checkError(err)
-	}
-
-	worldwideQuestions = append(worldwideQuestions, Question{
-		ID: questionID,
-		QuestionText: LocalizedText{
-			Japanese:       wrapText(japaneseQuestion),
-			English:        wrapText(englishQuestion),
-			German:         wrapText(germanQuestion),
-			French:         wrapText(frenchQuestion),
-			Spanish:        wrapText(spanishQuestion),
-			Italian:        wrapText(italianQuestion),
-			Dutch:          wrapText(dutchQuestion),
-			Portuguese:     wrapText(portugueseQuestion),
-			FrenchCanadian: wrapText(frenchCanadaQuestion),
-			Catalan:        wrapText(catalanQuestion),
-			Russian:        wrapText(russianQuestion),
-		},
-		Response1: LocalizedText{
-			Japanese:       japaneseChoice1,
-			English:        englishChoice1,
-			German:         germanChoice1,
-			French:         frenchChoice1,
-			Spanish:        spanishChoice1,
-			Italian:        italianChoice1,
-			Dutch:          dutchChoice1,
-			Portuguese:     portugueseChoice1,
-			FrenchCanadian: frenchCanadaChoice1,
-			Catalan:        catalanChoice1,
-			Russian:        russianChoice1,
-		},
-		Response2: LocalizedText{
-			Japanese:       japaneseChoice2,
-			English:        englishChoice2,
-			German:         germanChoice2,
-			French:         frenchChoice2,
-			Spanish:        spanishChoice2,
-			Italian:        italianChoice2,
-			Dutch:          dutchChoice2,
-			Portuguese:     portugueseChoice2,
-			FrenchCanadian: frenchCanadaChoice2,
-			Catalan:        catalanChoice2,
-			Russian:        russianChoice2,
-		},
-		StartTime: startDate,
-		EndTime:   endDate,
-	})
+	// Finally assign as our worldwide question.
+	worldwideQuestion = question
 }

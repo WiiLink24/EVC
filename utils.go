@@ -1,6 +1,13 @@
 package main
 
 import (
+	"bytes"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha1"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"github.com/mitchellh/go-wordwrap"
 	"os"
@@ -41,8 +48,9 @@ func GetSupportedLanguages(countryCode uint8) []LanguageCode {
 
 func (v *Votes) GetQuestionForLanguage(question Question, language LanguageCode) string {
 	switch language {
+	// TODO: Larsen never supported Japanese for some reason. Until we are able to translate all 1000+ questions, default to English.
 	case Japanese:
-		return question.QuestionText.Japanese
+		return question.QuestionText.English
 	case English:
 		return question.QuestionText.English
 	case German:
@@ -59,10 +67,6 @@ func (v *Votes) GetQuestionForLanguage(question Question, language LanguageCode)
 		return question.QuestionText.Portuguese
 	case FrenchCanadian:
 		return question.QuestionText.FrenchCanadian
-	case Catalan:
-		return question.QuestionText.Catalan
-	case Russian:
-		return question.QuestionText.Russian
 	}
 
 	return question.QuestionText.English
@@ -71,7 +75,7 @@ func (v *Votes) GetQuestionForLanguage(question Question, language LanguageCode)
 func (v *Votes) GetResponse1ForLanguage(question Question, language LanguageCode) string {
 	switch language {
 	case Japanese:
-		return question.Response1.Japanese
+		return question.Response1.English
 	case English:
 		return question.Response1.English
 	case German:
@@ -88,10 +92,6 @@ func (v *Votes) GetResponse1ForLanguage(question Question, language LanguageCode
 		return question.Response1.Portuguese
 	case FrenchCanadian:
 		return question.Response1.FrenchCanadian
-	case Catalan:
-		return question.Response1.Catalan
-	case Russian:
-		return question.Response1.Russian
 	}
 
 	return question.QuestionText.English
@@ -100,7 +100,7 @@ func (v *Votes) GetResponse1ForLanguage(question Question, language LanguageCode
 func (v *Votes) GetResponse2ForLanguage(question Question, language LanguageCode) string {
 	switch language {
 	case Japanese:
-		return question.Response2.Japanese
+		return question.Response2.English
 	case English:
 		return question.Response2.English
 	case German:
@@ -117,10 +117,6 @@ func (v *Votes) GetResponse2ForLanguage(question Question, language LanguageCode
 		return question.Response2.Portuguese
 	case FrenchCanadian:
 		return question.Response2.FrenchCanadian
-	case Catalan:
-		return question.Response2.Catalan
-	case Russian:
-		return question.Response2.Russian
 	}
 
 	return question.QuestionText.English
@@ -194,7 +190,7 @@ func sum(arr []uint8) uint8 {
 	return _sum
 }
 
-func wrapText(text string) string {
+func sanitizeText(text string) string {
 	var returnText string
 	textList := wordwrap.WrapString(text, 50)
 	for i, s := range strings.Split(textList, "\n") {
@@ -207,4 +203,68 @@ func wrapText(text string) string {
 	}
 
 	return returnText
+}
+
+// SanitizeText wraps the text into a format suitable for EVC.
+// This is a massive function but is necessary.
+func (q *Question) SanitizeText() {
+	// Question Text
+	q.QuestionText.English = sanitizeText(q.QuestionText.English)
+	q.QuestionText.German = sanitizeText(q.QuestionText.German)
+	q.QuestionText.French = sanitizeText(q.QuestionText.French)
+	q.QuestionText.Spanish = sanitizeText(q.QuestionText.Spanish)
+	q.QuestionText.Italian = sanitizeText(q.QuestionText.Italian)
+	q.QuestionText.Dutch = sanitizeText(q.QuestionText.Dutch)
+	q.QuestionText.Portuguese = sanitizeText(q.QuestionText.Portuguese)
+	q.QuestionText.FrenchCanadian = sanitizeText(q.QuestionText.FrenchCanadian)
+
+	// Response 1
+	q.Response1.English = sanitizeText(q.Response1.English)
+	q.Response1.German = sanitizeText(q.Response1.German)
+	q.Response1.French = sanitizeText(q.Response1.French)
+	q.Response1.Spanish = sanitizeText(q.Response1.Spanish)
+	q.Response1.Italian = sanitizeText(q.Response1.Italian)
+	q.Response1.Dutch = sanitizeText(q.Response1.Dutch)
+	q.Response1.Portuguese = sanitizeText(q.Response1.Portuguese)
+	q.Response1.FrenchCanadian = sanitizeText(q.Response1.FrenchCanadian)
+
+	// Response 2
+	q.Response2.English = sanitizeText(q.Response2.English)
+	q.Response2.German = sanitizeText(q.Response2.German)
+	q.Response2.French = sanitizeText(q.Response2.French)
+	q.Response2.Spanish = sanitizeText(q.Response2.Spanish)
+	q.Response2.Italian = sanitizeText(q.Response2.Italian)
+	q.Response2.Dutch = sanitizeText(q.Response2.Dutch)
+	q.Response2.Portuguese = sanitizeText(q.Response2.Portuguese)
+	q.Response2.FrenchCanadian = sanitizeText(q.Response2.FrenchCanadian)
+}
+
+func SignFile(contents []byte) []byte {
+	buffer := bytes.NewBuffer(nil)
+
+	// Get RSA key and sign
+	rsaData, err := os.ReadFile("Private.pem")
+	checkError(err)
+
+	rsaBlock, _ := pem.Decode(rsaData)
+
+	parsedKey, err := x509.ParsePKCS8PrivateKey(rsaBlock.Bytes)
+	checkError(err)
+
+	// Hash our data then sign
+	hash := sha1.New()
+	_, err = hash.Write(contents)
+	checkError(err)
+
+	contentsHashSum := hash.Sum(nil)
+
+	reader := rand.Reader
+	signature, err := rsa.SignPKCS1v15(reader, parsedKey.(*rsa.PrivateKey), crypto.SHA1, contentsHashSum)
+	checkError(err)
+
+	buffer.Write(make([]byte, 64))
+	buffer.Write(signature)
+	buffer.Write(contents)
+
+	return buffer.Bytes()
 }

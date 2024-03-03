@@ -51,14 +51,13 @@ func (v *Votes) MakeNationalQuestionsTable() {
 	v.Header.NationalQuestionTableOffset = v.GetCurrentSize()
 	entryNum := 0
 
-	for _, question := range questions {
+	for _, question := range nationalQuestions {
 		v.NationalQuestionTable = append(v.NationalQuestionTable, QuestionInfo{
-			PollID: uint32(question.ID),
-			// TODO: Implement categories within db
-			PollCategory1:              0,
-			PollCategory2:              0,
-			StartingTimestamp:          CreateTimestamp(question.StartTime),
-			EndingTimestamp:            CreateTimestamp(question.EndTime),
+			PollID:                     uint32(question.ID),
+			PollCategory1:              uint8(question.Category),
+			PollCategory2:              categoryKV[question.Category],
+			StartingTimestamp:          CreateTimestamp(int(question.Time.Unix())),
+			EndingTimestamp:            CreateTimestamp(int(question.Time.Unix())) + 10080,
 			NumberOfSupportedLanguages: uint8(len(countriesSupportedLanguages[v.currentCountryCode])),
 			QuestionTableEntryNumber:   uint32(entryNum),
 		})
@@ -69,14 +68,14 @@ func (v *Votes) MakeNationalQuestionsTable() {
 	v.Header.NumberOfNationalQuestions = uint8(len(v.NationalQuestionTable))
 }
 
-// MakeNationalResultsTable creates the results for the current national question.
+// MakeNationalResultsTable creates the results for the past six (6) national questions.
 func (v *Votes) MakeNationalResultsTable() {
 	result, detailed := v.PrepareNationalResults()
 	v.tempDetailedResults = detailed
 
 	if result != nil {
 		v.Header.NationalResultTableOffset = v.GetCurrentSize()
-		v.NationalResults = append(v.NationalResults, *result)
+		v.NationalResults = append(v.NationalResults, result...)
 	}
 
 	v.Header.NumberOfNationalResults = uint8(len(v.NationalResults))
@@ -86,7 +85,10 @@ func (v *Votes) MakeNationalResultsTable() {
 func (v *Votes) MakeDetailedNationalResultsTable() {
 	v.Header.DetailedNationalResultTableOffset = v.GetCurrentSize()
 
-	v.DetailedNationalResults = v.tempDetailedResults
+	for _, result := range v.tempDetailedResults {
+		v.DetailedNationalResults = append(v.DetailedNationalResults, result...)
+	}
+
 	v.Header.NumberOfDetailedNationalResults = uint16(len(v.DetailedNationalResults))
 }
 
