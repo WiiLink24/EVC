@@ -17,6 +17,10 @@ import (
 )
 
 func FormatAnsCnt(content string) []uint32 {
+	if len(content) > 4 {
+		content = content[:4]
+	}
+
 	uintArray := make([]uint32, 4)
 	temp := make([]uint32, len(content))
 
