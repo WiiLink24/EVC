@@ -35,12 +35,12 @@ const (
   							AND type = 'w'
 							ORDER BY question_id DESC LIMIT 6`
 
-	QueryVoterData = `SELECT votes."typeCD", votes."regionID", votes."ansCNT" FROM votes 
-                    WHERE votes."questionID" = $1 
-                    AND votes."countryID" = $2`
+	QueryVoterData = `SELECT type_cd, region_id, ans_cnt FROM votes 
+                    WHERE question_id = $1 
+                    AND country_id = $2`
 
-	QueryWorldwideVoterData = `SELECT votes."typeCD", votes."countryID", votes."regionID", votes."ansCNT" FROM votes 
-                    WHERE votes."questionID" = $1`
+	QueryWorldwideVoterData = `SELECT type_cd, country_id, region_id, ans_cnt FROM votes 
+                    WHERE question_id = $1`
 )
 
 type LocalizedText struct {
