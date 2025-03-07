@@ -13,7 +13,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"time"
 )
 
 func FormatAnsCnt(content string) []uint32 {
@@ -170,7 +169,7 @@ func GetFilename(countryCode string) string {
 	if fileType == Normal {
 		return "voting.bin"
 	} else {
-		date := time.Now().AddDate(0, 0, -GetTimeDifference())
+		date := currentTime.AddDate(0, 0, -GetTimeDifference())
 		year := strconv.Itoa(date.Year())
 		month := ZFill(uint8(date.Month()), 2)
 		day := ZFill(uint8(date.Day()), 2)
