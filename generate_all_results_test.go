@@ -23,11 +23,12 @@ func TestGenerateAllNationalResults(t *testing.T) {
 	fileType = Results
 	locality = National
 
+	runtime.GOMAXPROCS(runtime.NumCPU())
 	for i := 0; i < 21315-20000; i++ {
 		currentTime = time.Date(2025, 2, 1, 0, 0, 0, 0, time.UTC)
 		currentTime = currentTime.AddDate(0, 0, -2*i)
+
 		wg := sync.WaitGroup{}
-		runtime.GOMAXPROCS(runtime.NumCPU())
 		semaphore := make(chan any, 5)
 
 		wg.Add(len(countryCodes))
