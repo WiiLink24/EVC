@@ -11,8 +11,7 @@ import (
 	"io"
 	"log"
 	"os"
-	"runtime"
-	"sync"
+	"time"
 )
 
 // Votes contains all the children structs needed to
@@ -38,10 +37,11 @@ type Votes struct {
 
 // SQL variables.
 var (
-	pool     *pgxpool.Pool
-	ctx      = context.Background()
-	fileType FileType
-	locality Locality
+	pool        *pgxpool.Pool
+	ctx         = context.Background()
+	fileType    FileType
+	locality    Locality
+	currentTime time.Time
 )
 
 func checkError(err error) {
@@ -51,6 +51,7 @@ func checkError(err error) {
 }
 
 func main() {
+	currentTime = time.Now()
 	err := os.WriteFile("votes/first_data.bin", MakeFirstData(), 0666)
 	checkError(err)
 
@@ -98,94 +99,87 @@ func main() {
 		}
 	}
 
-	wg := sync.WaitGroup{}
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	semaphore := make(chan any, 5)
-
-	wg.Add(len(countryCodes))
 	for _, countryCode := range countryCodes {
-		go func(countryCode uint8) {
-			defer wg.Done()
-			semaphore <- struct{}{}
+		// NOTE: Usually for bulk files, I want to use sync.WaitGroup.
+		// However, it seems that the amount of files we generate for this
+		// will not give us faster speeds, in fact the opposite has occurred with deadlocks at unknown positions.
+		Generate(countryCode)
+	}
+}
 
-			votes := Votes{}
-			votes.currentCountryCode = countryCode
+func Generate(countryCode uint8) {
+	votes := Votes{}
+	votes.currentCountryCode = countryCode
 
-			// Create the file to write to
-			strCountryCode := ZFill(countryCode, 3)
-			err = os.Mkdir(fmt.Sprintf("votes/%s", strCountryCode), 0755)
-			if !os.IsExist(err) {
-				// If the folder exists we can just continue
-				checkError(err)
-			}
-
-			buffer := bytes.NewBuffer(nil)
-
-			// Header
-			votes.MakeHeader()
-
-			if fileType == Normal || fileType == _Question {
-				// Questions
-				if len(nationalQuestions) != 0 {
-					votes.MakeNationalQuestionsTable()
-				}
-
-				if worldwideQuestion.ID != 0 {
-					votes.MakeWorldWideQuestionsTable()
-				}
-
-				if worldwideQuestion.ID != 0 || len(nationalQuestions) != 0 {
-					votes.MakeQuestionsTable()
-				}
-			}
-
-			// National Results
-			if fileType == Normal || fileType == Results {
-				if locality != Worldwide {
-					votes.MakeNationalResultsTable()
-					votes.MakeDetailedNationalResultsTable()
-					votes.MakePositionTable()
-				}
-
-				if locality != National {
-					votes.MakeWorldWideResultsTable()
-					votes.MakeDetailedWorldWideResults()
-				}
-			}
-
-			if (fileType == Normal || fileType == Results) && locality != National {
-				// Country Table + Text
-				votes.MakeCountryInfoTable()
-				votes.MakeCountryTable()
-			}
-
-			// Write to byte buffer, add the file size, calculate crc32 then write file
-			votes.WriteAll(buffer)
-
-			crcTable := crc32.MakeTable(crc32.IEEE)
-			checksum := crc32.Checksum(buffer.Bytes()[12:], crcTable)
-			votes.Header.CRC32 = checksum
-			votes.Header.Filesize = uint32(buffer.Len())
-
-			// Reset the temp buffer and compress
-			buffer.Reset()
-			votes.WriteAll(buffer)
-
-			compressed, err := lz11.Compress(buffer.Bytes())
-			checkError(err)
-
-			signed := SignFile(compressed)
-
-			filename := GetFilename(strCountryCode)
-
-			err = os.WriteFile(fmt.Sprintf("votes/%s/%s", strCountryCode, filename), signed, 0666)
-			checkError(err)
-
-			<-semaphore
-		}(countryCode)
+	// Create the file to write to
+	strCountryCode := ZFill(countryCode, 3)
+	err := os.Mkdir(fmt.Sprintf("votes/%s", strCountryCode), 0755)
+	if !os.IsExist(err) {
+		// If the folder exists we can just continue
+		checkError(err)
 	}
 
-	wg.Wait()
+	buffer := bytes.NewBuffer(nil)
+
+	// Header
+	votes.MakeHeader()
+
+	if fileType == Normal || fileType == _Question {
+		// Questions
+		if len(nationalQuestions) != 0 {
+			votes.MakeNationalQuestionsTable()
+		}
+
+		if worldwideQuestion.ID != 0 {
+			votes.MakeWorldWideQuestionsTable()
+		}
+
+		if worldwideQuestion.ID != 0 || len(nationalQuestions) != 0 {
+			votes.MakeQuestionsTable()
+		}
+	}
+
+	// National Results
+	if fileType == Normal || fileType == Results {
+		if locality != Worldwide {
+			votes.MakeNationalResultsTable()
+			votes.MakeDetailedNationalResultsTable()
+			votes.MakePositionTable()
+		}
+
+		if locality != National {
+			votes.MakeWorldWideResultsTable()
+			votes.MakeDetailedWorldWideResults()
+		}
+	}
+
+	if (fileType == Normal || fileType == Results) && locality != National {
+		// Country Table + Text
+		votes.MakeCountryInfoTable()
+		votes.MakeCountryTable()
+	}
+
+	// Write to byte buffer, add the file size, calculate crc32 then write file
+	votes.WriteAll(buffer)
+
+	crcTable := crc32.MakeTable(crc32.IEEE)
+	checksum := crc32.Checksum(buffer.Bytes()[12:], crcTable)
+	votes.Header.CRC32 = checksum
+	votes.Header.Filesize = uint32(buffer.Len())
+
+	// Reset the temp buffer and compress
+	buffer.Reset()
+	votes.WriteAll(buffer)
+
+	compressed, err := lz11.Compress(buffer.Bytes())
+	checkError(err)
+
+	signed := SignFile(compressed)
+
+	filename := GetFilename(strCountryCode)
+
+	err = os.WriteFile(fmt.Sprintf("votes/%s/%s", strCountryCode, filename), signed, 0666)
+	checkError(err)
 }
 
 // Write writes the current values in Votes to an io.Writer method.

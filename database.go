@@ -10,30 +10,30 @@ import (
 const (
 	// QueryNationalQuestions queries the questions table for regular questions.
 	QueryNationalQuestions = `SELECT * FROM questions 
-							WHERE date > CURRENT_DATE - INTERVAL '7' DAY
+							WHERE date > $1
 							AND date <= CURRENT_DATE
 							AND type = 'n'
-							ORDER BY question_id
+							ORDER BY date
 							LIMIT 3`
 
 	// QueryQuestionsWorldwide queries the questions table for worldwide questions.
 	QueryQuestionsWorldwide = `SELECT * FROM questions 
-         					WHERE date > CURRENT_DATE - INTERVAL '15' DAY
+         					WHERE date > $1
            					AND date <= CURRENT_DATE
            					AND type = 'w'
-         					ORDER BY question_id`
+         					ORDER BY date`
 
 	// QueryApplicableNationalResults queries the questions table for national questions that have results.
 	QueryApplicableNationalResults = `SELECT question_id FROM questions
-							WHERE date <= CURRENT_DATE - INTERVAL '7' DAY
+							WHERE date <= $1
   							AND type = 'n'
-							ORDER BY question_id DESC LIMIT 6`
+							ORDER BY date DESC LIMIT 6`
 
-	// QueryApplicableWorldwideResult queries the questions table for national questions that have results.
+	// QueryApplicableWorldwideResult queries the questions table for worldwide questions that have results.
 	QueryApplicableWorldwideResult = `SELECT question_id FROM questions
-							WHERE date <= CURRENT_DATE - INTERVAL '15' DAY
+							WHERE date <= $1
   							AND type = 'w'
-							ORDER BY question_id DESC LIMIT 6`
+							ORDER BY date DESC LIMIT 1`
 
 	QueryVoterData = `SELECT type_cd, region_id, ans_cnt FROM votes 
                     WHERE question_id = $1 
@@ -79,7 +79,9 @@ var (
 func PrepareWorldWideResults() {
 	var questionID int
 
-	row := pool.QueryRow(ctx, QueryApplicableWorldwideResult)
+	// Worldwide polls run for 15 days. At the time this code will be executed, it should be 15 days after a
+	// poll has closed.
+	row := pool.QueryRow(ctx, QueryApplicableWorldwideResult, currentTime.AddDate(0, 0, -15))
 	err := row.Scan(&questionID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return
@@ -160,7 +162,7 @@ func (v *Votes) PrepareNationalResults() ([]NationalResult, [][]DetailedNational
 	var detailedNationalResultsForResults [][]DetailedNationalResult
 
 	// First query for applicable results.
-	rows, err := pool.Query(ctx, QueryApplicableNationalResults)
+	rows, err := pool.Query(ctx, QueryApplicableNationalResults, currentTime.AddDate(0, 0, -7))
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -251,7 +253,7 @@ func (v *Votes) PrepareNationalResults() ([]NationalResult, [][]DetailedNational
 }
 
 func PrepareNationalQuestions() {
-	rows, err := pool.Query(ctx, QueryNationalQuestions)
+	rows, err := pool.Query(ctx, QueryNationalQuestions, currentTime.AddDate(0, 0, -7))
 	checkError(err)
 
 	defer rows.Close()
@@ -280,7 +282,7 @@ func PrepareNationalQuestions() {
 }
 
 func PrepareWorldWideQuestion() {
-	row := pool.QueryRow(ctx, QueryQuestionsWorldwide)
+	row := pool.QueryRow(ctx, QueryQuestionsWorldwide, currentTime.AddDate(0, 0, -15))
 
 	question := Question{}
 	err := row.Scan(&question.ID,
