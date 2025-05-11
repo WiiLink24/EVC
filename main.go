@@ -11,8 +11,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"runtime"
-	"sync"
 	"time"
 )
 
@@ -101,24 +99,12 @@ func main() {
 		}
 	}
 
-	Generate(18)
-
-	wg := sync.WaitGroup{}
-	runtime.GOMAXPROCS(runtime.NumCPU())
-	semaphore := make(chan any, 5)
-
-	wg.Add(len(countryCodes))
 	for _, countryCode := range countryCodes {
-		go func(countryCode uint8) {
-			defer wg.Done()
-			semaphore <- struct{}{}
-			Generate(countryCode)
-			<-semaphore
-		}(countryCode)
+		// NOTE: Usually for bulk files, I want to use sync.WaitGroup.
+		// However, it seems that the amount of files we generate for this
+		// will not give us faster speeds, in fact the opposite has occurred with deadlocks at unknown positions.
+		Generate(countryCode)
 	}
-
-	wg.Wait()
-
 }
 
 func Generate(countryCode uint8) {

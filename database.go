@@ -79,6 +79,8 @@ var (
 func PrepareWorldWideResults() {
 	var questionID int
 
+	// Worldwide polls run for 15 days. At the time this code will be executed, it should be 15 days after a
+	// poll has closed.
 	row := pool.QueryRow(ctx, QueryApplicableWorldwideResult, currentTime.AddDate(0, 0, -15))
 	err := row.Scan(&questionID)
 	if errors.Is(err, pgx.ErrNoRows) {
