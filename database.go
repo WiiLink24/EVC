@@ -13,7 +13,7 @@ const (
 							WHERE date > $1
 							AND date <= CURRENT_DATE
 							AND type = 'n'
-							ORDER BY question_id
+							ORDER BY date
 							LIMIT 3`
 
 	// QueryQuestionsWorldwide queries the questions table for worldwide questions.
@@ -21,19 +21,19 @@ const (
          					WHERE date > $1
            					AND date <= CURRENT_DATE
            					AND type = 'w'
-         					ORDER BY question_id`
+         					ORDER BY date`
 
 	// QueryApplicableNationalResults queries the questions table for national questions that have results.
 	QueryApplicableNationalResults = `SELECT question_id FROM questions
 							WHERE date <= $1
   							AND type = 'n'
-							ORDER BY question_id DESC LIMIT 6`
+							ORDER BY date DESC LIMIT 6`
 
-	// QueryApplicableWorldwideResult queries the questions table for national questions that have results.
+	// QueryApplicableWorldwideResult queries the questions table for worldwide questions that have results.
 	QueryApplicableWorldwideResult = `SELECT question_id FROM questions
 							WHERE date <= $1
   							AND type = 'w'
-							ORDER BY question_id DESC LIMIT 6`
+							ORDER BY date DESC LIMIT 1`
 
 	QueryVoterData = `SELECT type_cd, region_id, ans_cnt FROM votes 
                     WHERE question_id = $1 

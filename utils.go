@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func FormatAnsCnt(content string) []uint32 {
@@ -149,14 +150,6 @@ func GetLocality(str string) Locality {
 	}
 }
 
-func GetTimeDifference() int {
-	if locality == National {
-		return 7
-	} else {
-		return 14
-	}
-}
-
 func GetExtension() string {
 	if fileType == Results {
 		return "_r.bin"
@@ -169,7 +162,16 @@ func GetFilename(countryCode string) string {
 	if fileType == Normal {
 		return "voting.bin"
 	} else {
-		date := currentTime.AddDate(0, 0, -GetTimeDifference())
+		date := currentTime.AddDate(0, 0, -7)
+		if locality == Worldwide {
+			// Worldwide questions run on days 1 and 14.
+			if currentTime.Day() == 1 {
+				date = time.Date(currentTime.Year(), currentTime.Month()-1, 14, 0, 0, 0, 0, time.UTC)
+			} else {
+				date = time.Date(currentTime.Year(), currentTime.Month(), 1, 0, 0, 0, 0, time.UTC)
+			}
+		}
+
 		year := strconv.Itoa(date.Year())
 		month := ZFill(uint8(date.Month()), 2)
 		day := ZFill(uint8(date.Day()), 2)
