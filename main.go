@@ -52,7 +52,14 @@ func checkError(err error) {
 
 func main() {
 	currentTime = time.Now()
-	err := os.WriteFile("votes/first_data.bin", MakeFirstData(), 0666)
+
+	// First, we will create a housing directory for all our files.
+	err := os.Mkdir("votes", 0755)
+	if !os.IsExist(err) {
+		checkError(err)
+	}
+
+	err = os.WriteFile("votes/first_data.bin", MakeFirstData(), 0666)
 	checkError(err)
 
 	fileType = GetFileType(os.Args[1])
@@ -73,12 +80,6 @@ func main() {
 	checkError(err)
 
 	defer pool.Close()
-
-	// First, we will create a housing directory for all our files.
-	err = os.Mkdir("votes", 0755)
-	if !os.IsExist(err) {
-		checkError(err)
-	}
 
 	if fileType == Normal {
 		// voting.bin requires all questions and all applicable results.

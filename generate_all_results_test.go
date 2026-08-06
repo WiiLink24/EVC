@@ -3,12 +3,18 @@ package main
 import (
 	"fmt"
 	"github.com/jackc/pgx/v4/pgxpool"
+	"os"
 	"testing"
 	"time"
 )
 
 func TestGenerateAllNationalResults(t *testing.T) {
 	config := GetConfig()
+
+	err := os.Mkdir("votes", 0755)
+	if !os.IsExist(err) {
+		checkError(err)
+	}
 
 	dbString := fmt.Sprintf("postgres://%s:%s@%s/%s", config.Username, config.Password, config.DatabaseAddress, config.DatabaseName)
 	dbConf, err := pgxpool.ParseConfig(dbString)
@@ -40,6 +46,11 @@ func TestGenerateAllNationalResults(t *testing.T) {
 
 func TestGenerateAllWorldwideResults(t *testing.T) {
 	config := GetConfig()
+
+	err := os.Mkdir("votes", 0755)
+	if !os.IsExist(err) {
+		checkError(err)
+	}
 
 	dbString := fmt.Sprintf("postgres://%s:%s@%s/%s", config.Username, config.Password, config.DatabaseAddress, config.DatabaseName)
 	dbConf, err := pgxpool.ParseConfig(dbString)
