@@ -1,0 +1,5 @@
+0 0 1,16 * 2,4,6 cd /home/server && ./app v
+0 0 * * 2,4,6 cd /home/server && ./app q n
+0 0 * * 2,4,6 cd /home/server && ./app r n
+0 0 1,16 * * cd /home/server && ./app q w
+0 0 1,16 * * cd /home/server && ./app r w
